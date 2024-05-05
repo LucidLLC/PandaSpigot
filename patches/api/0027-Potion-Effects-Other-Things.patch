@@ -1,0 +1,102 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marko <visualpvp1@gmail.com>
+Date: Sun, 5 May 2024 22:21:17 +0200
+Subject: [PATCH] Potion Effects + Other Things
+
+
+diff --git a/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectAddEvent.java b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectAddEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..739fa463c404ed24fc2a552c49d3e795f2f92483
+--- /dev/null
++++ b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectAddEvent.java
+@@ -0,0 +1,12 @@
++package com.hpfxd.pandaspigot.event.sound;
++
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.potion.PotionEffect;
++
++public final class PotionEffectAddEvent extends PotionEffectEvent {
++
++    public PotionEffectAddEvent(LivingEntity entity, PotionEffect effect) {
++        super(entity, effect);
++    }
++
++}
+diff --git a/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectEvent.java b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..a7b6fe46b00fc9e94e36e5ffef8d0b7c9046fe8a
+--- /dev/null
++++ b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectEvent.java
+@@ -0,0 +1,36 @@
++package com.hpfxd.pandaspigot.event.sound;
++
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.potion.PotionEffect;
++
++public abstract class PotionEffectEvent extends Event {
++
++    private static final HandlerList handlerList = new HandlerList();
++
++    private final LivingEntity entity;
++    private final PotionEffect effect;
++
++    protected PotionEffectEvent(LivingEntity entity, PotionEffect effect) {
++        this.entity = entity;
++        this.effect = effect;
++    }
++
++    @Override
++    public final HandlerList getHandlers() {
++        return handlerList;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlerList;
++    }
++
++    public LivingEntity getEntity() {
++        return entity;
++    }
++
++    public PotionEffect getEffect() {
++        return effect;
++    }
++}
+diff --git a/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectExpireEvent.java b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectExpireEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..20385ca2247756b0f9ab186fb6966f22085ff88b
+--- /dev/null
++++ b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectExpireEvent.java
+@@ -0,0 +1,12 @@
++package com.hpfxd.pandaspigot.event.sound;
++
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.potion.PotionEffect;
++
++public final class PotionEffectExpireEvent extends PotionEffectEvent {
++
++    public PotionEffectExpireEvent(LivingEntity entity, PotionEffect effect) {
++        super(entity, effect);
++    }
++
++}
+diff --git a/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectRemoveEvent.java b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectRemoveEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..82e16444f98e8d36ee327726a17c42fc65d4cb63
+--- /dev/null
++++ b/src/main/java/com/hpfxd/pandaspigot/event/sound/PotionEffectRemoveEvent.java
+@@ -0,0 +1,12 @@
++package com.hpfxd.pandaspigot.event.sound;
++
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.potion.PotionEffect;
++
++public final class PotionEffectRemoveEvent extends PotionEffectEvent {
++
++    public PotionEffectRemoveEvent(LivingEntity entity, PotionEffect effect) {
++        super(entity, effect);
++    }
++
++}

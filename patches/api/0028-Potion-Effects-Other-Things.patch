@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marko <visualpvp1@gmail.com>
+Date: Mon, 6 May 2024 00:17:58 +0200
+Subject: [PATCH] Potion Effects + Other Things
+
+
+diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+index f35bc0921e1f65c8f35cca28b081d3223c2f417b..07ba94f53c99c4efe12d6c0fed4bc1cd5ba71701 100644
+--- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
++++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+@@ -23,7 +23,7 @@ import org.github.paperspigot.exception.ServerTabCompleteException;
+ 
+ public class SimpleCommandMap implements CommandMap {
+     private static final Pattern PATTERN_ON_SPACE = Pattern.compile(" ", Pattern.LITERAL);
+-    protected final Map<String, Command> knownCommands = new HashMap<String, Command>();
++    public Map<String, Command> knownCommands = new HashMap<String, Command>();
+     private final Server server;
+ 
+     public SimpleCommandMap(final Server server) {
+@@ -98,7 +98,7 @@ public class SimpleCommandMap implements CommandMap {
+      *     unique address
+      * @return true if command was registered, false otherwise.
+      */
+-    private synchronized boolean register(String label, Command command, boolean isAlias, String fallbackPrefix) {
++    public synchronized boolean register(String label, Command command, boolean isAlias, String fallbackPrefix) {
+         knownCommands.put(fallbackPrefix + ":" + label, command);
+         if ((command instanceof VanillaCommand || isAlias) && knownCommands.containsKey(label)) {
+             // Request is for an alias/fallback command and it conflicts with

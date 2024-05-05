@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marko <visualpvp1@gmail.com>
+Date: Sun, 5 May 2024 22:53:52 +0200
+Subject: [PATCH] Potion Effects + Other Things
+
+
+diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
+index 01f9bf767f070b2d9acd42f4acf51a798a44d0d7..9e9877468f6840ee0208dfdc0e5a1fc04fdcf46e 100644
+--- a/src/main/java/net/minecraft/server/EntityInsentient.java
++++ b/src/main/java/net/minecraft/server/EntityInsentient.java
+@@ -128,7 +128,7 @@ public abstract class EntityInsentient extends EntityLiving {
+ 
+     public void v() {}
+ 
+-    public void h() {
++    protected void h() {
+         super.h();
+         this.datawatcher.a(15, Byte.valueOf((byte) 0));
+     }

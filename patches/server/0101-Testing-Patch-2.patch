@@ -1,0 +1,21 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marko <visualpvp1@gmail.com>
+Date: Sun, 5 May 2024 21:58:28 +0200
+Subject: [PATCH] Testing Patch 2
+
+
+diff --git a/src/main/java/net/minecraft/server/BiomeMesa.java b/src/main/java/net/minecraft/server/BiomeMesa.java
+index 65cd706acabc943b53f6e5d835d63ba3b52a316c..3f49be98d95b8833e3b928b010d5fc8108bec89e 100644
+--- a/src/main/java/net/minecraft/server/BiomeMesa.java
++++ b/src/main/java/net/minecraft/server/BiomeMesa.java
+@@ -34,6 +34,10 @@ public class BiomeMesa extends BiomeBase {
+ 
+     }
+ 
++    private void erkumsTest() {
++
++    }
++
+     public WorldGenTreeAbstract a(Random random) {
+         return this.aA;
+     }

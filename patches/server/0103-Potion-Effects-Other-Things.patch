@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marko <visualpvp1@gmail.com>
+Date: Sun, 5 May 2024 22:50:03 +0200
+Subject: [PATCH] Potion Effects + Other Things
+
+
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 0343b568782a53ada5cc742f145c76f9f80b2e1a..187bfbe495e37b1480943e51f121fd25f3c2694d 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -367,7 +367,7 @@ public abstract class EntityHuman extends EntityLiving {
+         }
+     }
+ 
+-    public void public String bp() {
++    public void doTick() {
+         super.doTick();
+         this.bx();
+         this.aK = this.yaw;

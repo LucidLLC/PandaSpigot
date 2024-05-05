@@ -1,0 +1,181 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marko <visualpvp1@gmail.com>
+Date: Sun, 5 May 2024 22:45:05 +0200
+Subject: [PATCH] Potion Effects + Other Things
+
+
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 8c8bee5562bdac6258140e75e1a7286451ff95f1..0343b568782a53ada5cc742f145c76f9f80b2e1a 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -367,7 +367,7 @@ public abstract class EntityHuman extends EntityLiving {
+         }
+     }
+ 
+-    protected void doTick() {
++    public void public String bp() {
+         super.doTick();
+         this.bx();
+         this.aK = this.yaw;
+diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
+index 0b6427cc5d0bbb81217f3da261c2e0f4a4fdca3a..01f9bf767f070b2d9acd42f4acf51a798a44d0d7 100644
+--- a/src/main/java/net/minecraft/server/EntityInsentient.java
++++ b/src/main/java/net/minecraft/server/EntityInsentient.java
+@@ -128,7 +128,7 @@ public abstract class EntityInsentient extends EntityLiving {
+ 
+     public void v() {}
+ 
+-    protected void h() {
++    public void h() {
+         super.h();
+         this.datawatcher.a(15, Byte.valueOf((byte) 0));
+     }
+@@ -460,7 +460,7 @@ public abstract class EntityInsentient extends EntityLiving {
+         }
+     }
+ 
+-    protected final void doTick() {
++    public void doTick() {
+         ++this.ticksFarFromPlayer;
+         this.world.methodProfiler.a("checkDespawn");
+         this.D();
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index 62e38bf1c0d0fc878768ac00fa3c56ac7fe5101d..3f5fb34e63a4fe8c1b1068da11eab95ca79df716 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -1,19 +1,14 @@
+ package net.minecraft.server;
+ 
++import com.google.common.base.Function;
+ import com.google.common.base.Predicate;
+ import com.google.common.base.Predicates;
+-import com.google.common.collect.Maps;
+-import java.util.Collection;
+-import java.util.Iterator;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Random;
+-import java.util.UUID;
+-
+-// CraftBukkit start
+-import java.util.ArrayList;
+-import com.google.common.base.Function;
+ import com.google.common.collect.Lists;
++import com.google.common.collect.Maps;
++import com.hpfxd.pandaspigot.event.sound.PotionEffectAddEvent;
++import com.hpfxd.pandaspigot.event.sound.PotionEffectExpireEvent;
++import com.hpfxd.pandaspigot.event.sound.PotionEffectRemoveEvent;
++import org.bukkit.Bukkit;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.entity.LivingEntity;
+ import org.bukkit.entity.Vehicle;
+@@ -21,13 +16,11 @@ import org.bukkit.event.entity.EntityDamageEvent;
+ import org.bukkit.event.entity.EntityDamageEvent.DamageModifier;
+ import org.bukkit.event.entity.EntityRegainHealthEvent;
+ import org.bukkit.event.vehicle.VehicleExitEvent;
+-// CraftBukkit end
+-
+-import co.aikar.timings.SpigotTimings; // Spigot
+-
+-// PaperSpigot start
+-import org.bukkit.Bukkit;
++import org.bukkit.potion.PotionEffect;
++import org.bukkit.potion.PotionEffectType;
+ import org.spigotmc.event.entity.EntityDismountEvent;
++
++import java.util.*;
+ // PaperSpigot end
+ 
+ public abstract class EntityLiving extends Entity {
+@@ -480,6 +473,10 @@ public abstract class EntityLiving extends Entity {
+             if (!mobeffect.tick(this)) {
+                 if (!this.world.isClientSide) {
+                     iterator.remove();
++                    // Lucid start - call PotionEffectExpireEvent
++                    PotionEffect effect = new PotionEffect(PotionEffectType.getById(mobeffect.getEffectId()), mobeffect.getDuration(), mobeffect.getAmplifier(), mobeffect.isAmbient(), mobeffect.isShowParticles());
++                    this.world.getServer().getPluginManager().callEvent(new PotionEffectExpireEvent((LivingEntity) getBukkitEntity(), effect));
++                    // Lucid end
+                     this.b(mobeffect);
+                 }
+             } else if (mobeffect.getDuration() % 600 == 0) {
+@@ -560,6 +557,10 @@ public abstract class EntityLiving extends Entity {
+ 
+             if (!this.world.isClientSide) {
+                 iterator.remove();
++                // Lucid start - call PotionEffectRemoveEvent
++                PotionEffect effect = new PotionEffect(PotionEffectType.getById(mobeffect.getEffectId()), mobeffect.getDuration(), mobeffect.getAmplifier(), mobeffect.isAmbient(), mobeffect.isShowParticles());
++                Bukkit.getPluginManager().callEvent(new PotionEffectRemoveEvent((LivingEntity) getBukkitEntity(), effect));
++                // Lucid end
+                 this.b(mobeffect);
+             }
+         }
+@@ -592,6 +593,11 @@ public abstract class EntityLiving extends Entity {
+         }
+         // CraftBukkit end
+         if (this.d(mobeffect)) {
++            // Lucid start - call PotionEffectAddEvent
++            PotionEffect effect = new PotionEffect(PotionEffectType.getById(mobeffect.getEffectId()), mobeffect.getDuration(), mobeffect.getAmplifier(), mobeffect.isAmbient(), mobeffect.isShowParticles());
++            Bukkit.getPluginManager().callEvent(new PotionEffectAddEvent((LivingEntity) getBukkitEntity(), effect));
++            // Lucid end
++
+             if (this.effects.containsKey(Integer.valueOf(mobeffect.getEffectId()))) {
+                 ((MobEffect) this.effects.get(Integer.valueOf(mobeffect.getEffectId()))).a(mobeffect);
+                 this.a((MobEffect) this.effects.get(Integer.valueOf(mobeffect.getEffectId())), true);
+@@ -629,6 +635,11 @@ public abstract class EntityLiving extends Entity {
+         MobEffect mobeffect = (MobEffect) this.effects.remove(Integer.valueOf(i));
+ 
+         if (mobeffect != null) {
++            // Lucid start - call PotionEffectRemoveEvent
++            PotionEffect effect = new PotionEffect(PotionEffectType.getById(mobeffect.getEffectId()), mobeffect.getDuration(), mobeffect.getAmplifier(), mobeffect.isAmbient(), mobeffect.isShowParticles());
++            Bukkit.getPluginManager().callEvent(new PotionEffectRemoveEvent((LivingEntity) getBukkitEntity(), effect));
++            // Lucid end
++
+             this.b(mobeffect);
+         }
+ 
+@@ -1695,7 +1706,7 @@ public abstract class EntityLiving extends Entity {
+         // PandaSpigot end
+     }
+ 
+-    protected void doTick() {}
++    public void doTick() {}
+ 
+     protected void bL() {
+         List list = this.world.a((Entity) this, this.getBoundingBox().grow(0.20000000298023224D, 0.0D, 0.20000000298023224D), Predicates.and(IEntitySelector.d, new Predicate() {
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutPlayerInfo.java b/src/main/java/net/minecraft/server/PacketPlayOutPlayerInfo.java
+index fc5ad2911fda8a8270a3d3ceddd70c5f2fbbd79b..f79769aec6a5312179b49e90520daa682605ca69 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutPlayerInfo.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutPlayerInfo.java
+@@ -4,14 +4,15 @@ import com.google.common.base.Objects;
+ import com.google.common.collect.Lists;
+ import com.mojang.authlib.GameProfile;
+ import com.mojang.authlib.properties.Property;
++
+ import java.io.IOException;
+ import java.util.Iterator;
+ import java.util.List;
+ 
+ public class PacketPlayOutPlayerInfo implements Packet<PacketListenerPlayOut> {
+ 
+-    private PacketPlayOutPlayerInfo.EnumPlayerInfoAction a;
+-    private final List<PacketPlayOutPlayerInfo.PlayerInfoData> b = Lists.newArrayList();
++    public PacketPlayOutPlayerInfo.EnumPlayerInfoAction a;
++    public List<PacketPlayOutPlayerInfo.PlayerInfoData> b = Lists.newArrayList();
+ 
+     public PacketPlayOutPlayerInfo() {}
+ 
+@@ -212,10 +213,10 @@ public class PacketPlayOutPlayerInfo implements Packet<PacketListenerPlayOut> {
+ 
+     public class PlayerInfoData {
+ 
+-        private final int b;
+-        private final WorldSettings.EnumGamemode c;
+-        private final GameProfile d;
+-        private final IChatBaseComponent e;
++        public int b;
++        public WorldSettings.EnumGamemode c;
++        public GameProfile d;
++        public IChatBaseComponent e;
+ 
+         public PlayerInfoData(GameProfile gameprofile, int i, WorldSettings.EnumGamemode worldsettings_enumgamemode, IChatBaseComponent ichatbasecomponent) {
+             this.d = gameprofile;

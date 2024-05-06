@@ -1,0 +1,687 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marko <visualpvp1@gmail.com>
+Date: Mon, 6 May 2024 01:08:01 +0200
+Subject: [PATCH] Potion Effects + Other Things
+
+
+diff --git a/src/main/java/net/frozenorb/protocol/MoveHook.java b/src/main/java/net/frozenorb/protocol/MoveHook.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..3bdb043ea0880979abe146c8e11f6eb42da6c9d6
+--- /dev/null
++++ b/src/main/java/net/frozenorb/protocol/MoveHook.java
+@@ -0,0 +1,182 @@
++package net.frozenorb.protocol;
++
++import com.google.common.base.Preconditions;
++import org.bukkit.Location;
++import org.bukkit.World;
++import org.bukkit.entity.Player;
++
++public interface MoveHook {
++
++    /**
++     * Handles a position update for a player (called every PacketPlayInFlying that has any xyz delta)
++     *
++     * @param player - The player who is moving
++     * @param from   - The position where the player is moving from
++     * @param to     - The position where the player is moving to
++     * @return (
++     *      {@link PositionUpdateResult#NEUTRAL} to not interfere with cancellation and/or passing of the movement (leave to other hooks)
++     *      {@link PositionUpdateResult#PASS} to set the movement to passable (if there are no other hooks after this one, the move will pass)
++     *      {@link PositionUpdateResult#CANCEL_WITHOUT_ROTATION} to teleport the player back to {@code from}, without setting their pitch/yaw
++     *      {@link PositionUpdateResult#CANCEL} to teleport the player back to {@code from}, setting their pitch/yaw as well
++     * )
++     */
++    default PositionUpdateResult handlePositionUpdate(Player player, Position from, Position to, PositionUpdateResult current) { return PositionUpdateResult.NEUTRAL; }
++
++    /**
++     * Handles a rotation update for a player (called every PacketPlayInFlying that has any pitch/yaw delta)
++     *
++     * @param player - The player who is changing their rotation
++     * @param from   - The position where the player is moving from
++     * @param to     - The position where the player is moving to
++     * @return (
++     *      {@link RotationUpdateResult#NEUTRAL} to not interfere with cancellation and/or passing of the movement (leave to other hooks)
++     *      {@link RotationUpdateResult#PASS} to set the movement to passable (if there are no other hooks after this one, the move will pass)
++     *      {@link RotationUpdateResult#CANCEL} to teleport the player back to {@code from}, setting their pitch/yaw as well
++     * )
++     */
++    default RotationUpdateResult handleRotationUpdate(Player player, Position from, Position to, RotationUpdateResult current) { return RotationUpdateResult.NEUTRAL; }
++
++    default int moveHandlingPriority() { return 0; }
++
++    class Position extends Location {
++
++        private Boolean onGround = null;
++        private Boolean onGroundServerSide = null;
++
++        public Boolean isOnGround() {
++            return onGround;
++        }
++
++        public Boolean isOnGroundServerSide() {
++            return onGroundServerSide;
++        }
++
++        public Position(Location other) {
++            this(other.getWorld(), other.getX(), other.getY(), other.getZ(), other.getYaw(), other.getPitch());
++        }
++
++        public Position(World world, double x, double y, double z, float yaw, float pitch) {
++            super(world, x, y, z, yaw, pitch);
++        }
++
++        public void setOnGround(boolean onGround) {
++            Preconditions.checkArgument(this.onGround == null, "Can't set already-initialized onGround state");
++            this.onGround = onGround;
++        }
++
++        public void setOnGroundServerSide(boolean onGroundServerSide) {
++            Preconditions.checkArgument(this.onGroundServerSide == null, "Can't set already-initialized onGroundServerSide state");
++            this.onGroundServerSide = onGroundServerSide;
++        }
++
++    }
++
++    enum PositionUpdateResult {
++
++        CANCEL_WITHOUT_ROTATION,
++        CANCEL,
++        NEUTRAL,
++        PASS;
++
++        // these are pre-calculated in PlayerConnection
++        private static double dx, dy, dz;
++        private static double distanceSquared;
++
++        // these we lazy-init so there is no repeating of calculations for the same movement
++        private static Double distance, horizontalDistanceSq, horizontalDistance;
++
++        static void prepare(Location from, double dx, double dy, double dz, double distanceSquared) {
++            PositionUpdateResult.cancelTo = from;
++            PositionUpdateResult.dx = dx;
++            PositionUpdateResult.dy = dy;
++            PositionUpdateResult.dz = dz;
++            PositionUpdateResult.distanceSquared = distanceSquared;
++            PositionUpdateResult.distance = null;
++            PositionUpdateResult.horizontalDistanceSq = null;;
++            PositionUpdateResult.horizontalDistance = null;
++        }
++
++        private static Location cancelTo;
++        public static Location cancelTo() { return cancelTo; }
++        public static PositionUpdateResult cancelTo(Location to) { return cancelTo(to, false); }
++        public static PositionUpdateResult cancelTo(Location to, boolean rotation) {
++            PositionUpdateResult.cancelTo = to;
++            return rotation ? CANCEL : CANCEL_WITHOUT_ROTATION;
++        }
++
++        public static double deltaX() { return dx; }
++        public static double deltaY() { return dy; }
++        public static double deltaZ() { return dz; }
++
++        public static double distanceSquared() {
++            return distanceSquared;
++        }
++
++        public static double distance() {
++            if (distance == null) distance = Math.sqrt(distanceSquared());
++            return distance;
++        }
++
++        public static double horizontalDistanceSquared() {
++            if (horizontalDistanceSq == null) horizontalDistanceSq = (dx * dx) + (dz * dz);
++            return horizontalDistanceSq;
++        }
++
++        public static double horizontalDistance() {
++            if (horizontalDistance == null) horizontalDistance = Math.sqrt(horizontalDistanceSquared());
++            return horizontalDistance;
++        }
++
++    }
++
++    enum RotationUpdateResult {
++
++        CANCEL,
++        NEUTRAL,
++        PASS;
++
++        private static float dYaw, dPitch, dAngle;
++
++        public static float deltaYaw() { return dYaw; }
++        public static float deltaPitch() { return dPitch; }
++        public static float deltaAngle() { return dAngle; }
++
++        private static Location cancelTo;
++        public static Location cancelTo() { return cancelTo; }
++        public static void cancelTo(Location to) { RotationUpdateResult.cancelTo = to; }
++
++        static void prepare(Location from, float dYaw, float dPitch, float dAngle) {
++            RotationUpdateResult.cancelTo = from;
++            RotationUpdateResult.dYaw = dYaw;
++            RotationUpdateResult.dPitch = dPitch;
++            RotationUpdateResult.dAngle = dAngle;
++            RotationUpdateResult.pitchDistance = null;
++            RotationUpdateResult.yawDistance = null;
++        }
++
++        private static Float yawDistance;
++        private static Float pitchDistance;
++
++        public static float yawDistance() {
++            if (yawDistance == null) yawDistance = angleDistance(deltaYaw());
++            return yawDistance;
++        }
++
++        public static float pitchDistance() {
++            if (pitchDistance == null) pitchDistance = angleDistance(deltaPitch());
++            return pitchDistance;
++        }
++
++        private static float angleDistance(float delta) {
++            float distance = Math.abs(delta) % 360.0f;
++
++            if(distance > 180.0f) {
++                distance = 360.0f - distance;
++            }
++
++            return distance;
++        }
++
++    }
++
++}
+diff --git a/src/main/java/net/frozenorb/protocol/MoveHooks.java b/src/main/java/net/frozenorb/protocol/MoveHooks.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..4c320fc579ba4e1e63a9486291ddf6112f7ff19f
+--- /dev/null
++++ b/src/main/java/net/frozenorb/protocol/MoveHooks.java
+@@ -0,0 +1,56 @@
++package net.frozenorb.protocol;
++
++import net.minecraft.server.EntityPlayer;
++
++import java.util.Comparator;
++import java.util.concurrent.CopyOnWriteArrayList;
++
++public class MoveHooks {
++
++    private static final Comparator<MoveHook> COMPARATOR = Comparator.comparingInt(MoveHook::moveHandlingPriority);
++    private static final CopyOnWriteArrayList<MoveHook> hooks = new CopyOnWriteArrayList<>();
++
++    public static void register(MoveHook handler) {
++        hooks.add(handler);
++        hooks.sort(COMPARATOR);
++    }
++
++    public static void unregister(MoveHook handler) {
++        hooks.remove(handler);
++    }
++
++    public static MoveHook.PositionUpdateResult _handlePositionUpdate(EntityPlayer player, MoveHook.Position from, MoveHook.Position to, double dx, double dy, double dz, double xyzSq) {
++        MoveHook.PositionUpdateResult.prepare(from, dx, dy, dz, xyzSq);
++        MoveHook.PositionUpdateResult result = MoveHook.PositionUpdateResult.PASS;
++
++        for (MoveHook hook : hooks) {
++            try {
++                MoveHook.PositionUpdateResult r = hook.handlePositionUpdate(player.getBukkitEntity(), from, to, result);
++
++                if (r != MoveHook.PositionUpdateResult.NEUTRAL) result = r;
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++
++        return result;
++    }
++
++    public static MoveHook.RotationUpdateResult _handleRotationUpdate(EntityPlayer player, MoveHook.Position from, MoveHook.Position to, float dYaw, float dPitch, float dAngle) {
++        MoveHook.RotationUpdateResult.prepare(from, dYaw, dPitch, dAngle);
++        MoveHook.RotationUpdateResult result = MoveHook.RotationUpdateResult.PASS;
++
++        for (MoveHook hook : hooks) {
++            try {
++                MoveHook.RotationUpdateResult r = hook.handleRotationUpdate(player.getBukkitEntity(), from, to, result);
++
++                if (r != MoveHook.RotationUpdateResult.NEUTRAL) result = r;
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++
++        return result;
++    }
++
++}
+diff --git a/src/main/java/net/frozenorb/protocol/PacketHook.java b/src/main/java/net/frozenorb/protocol/PacketHook.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..43cc28ec4299f64e886469509053c585ab5229bd
+--- /dev/null
++++ b/src/main/java/net/frozenorb/protocol/PacketHook.java
+@@ -0,0 +1,25 @@
++package net.frozenorb.protocol;
++
++import net.minecraft.server.EntityPlayer;
++import net.minecraft.server.Packet;
++import net.minecraft.server.PacketListener;
++
++public interface PacketHook {
++
++    // sync methods - get called on the main server thread
++    default Packet packetInPre(PacketListener listener, EntityPlayer player, Packet packet) { return packet; }
++    // called right after the packet is processed
++    default void packetInPost(PacketListener listener, EntityPlayer player, Packet packet) {}
++
++    default Packet packetOutPre(PacketListener listener, EntityPlayer player, Packet packet) { return packet; }
++
++    // async methods - get called on the netty threads, just as protocollib would work
++    default Packet nettyPacketInPre(PacketListener listener, EntityPlayer player, Packet packet) { return packet; }
++    default void nettyPacketInPost(PacketListener listener, EntityPlayer player, Packet packet) { }
++
++    default Packet nettyPacketOutPre(PacketListener listener, EntityPlayer player, Packet packet) { return packet; }
++
++    // the lower this is, the earlier the packet gets processed
++    default int packetHandlingPriority() { return 0; }
++
++}
+diff --git a/src/main/java/net/frozenorb/protocol/PacketHooks.java b/src/main/java/net/frozenorb/protocol/PacketHooks.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..832bc6f1506d442cee964ca0ef7dda27c72987a4
+--- /dev/null
++++ b/src/main/java/net/frozenorb/protocol/PacketHooks.java
+@@ -0,0 +1,97 @@
++package net.frozenorb.protocol;
++
++import net.minecraft.server.EntityPlayer;
++import net.minecraft.server.Packet;
++import net.minecraft.server.PacketListener;
++import net.minecraft.server.PlayerConnection;
++
++import java.util.Comparator;
++import java.util.concurrent.CopyOnWriteArrayList;
++
++public final class PacketHooks {
++
++    private static final Comparator<PacketHook> COMPARATOR = Comparator.comparingInt(PacketHook::packetHandlingPriority);
++    private static final CopyOnWriteArrayList<PacketHook> hooks = new CopyOnWriteArrayList<>();
++
++    public static void register(PacketHook handler) {
++        hooks.add(handler);
++        hooks.sort(COMPARATOR);
++    }
++
++    public static void unregister(PacketHook handler) {
++        hooks.remove(handler);
++    }
++
++    public static Packet<?> _packetInPre(PacketListener listener, Packet<?> packet) {
++        for (PacketHook handler : hooks) {
++            try {
++                packet = handler.packetInPre(listener, player(listener), packet);
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++
++        return packet;
++    }
++
++    public static void _packetInPost(PacketListener listener, Packet<?> packet) {
++        for (PacketHook handler : hooks) {
++            try {
++                handler.packetInPost(listener, player(listener), packet);
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++    }
++
++    public static Packet<?> _packetOutPre(PacketListener listener, Packet<?> packet) {
++        for (PacketHook handler : hooks) {
++            try {
++                packet = handler.packetOutPre(listener, player(listener), packet);
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++
++        return packet;
++    }
++
++    public static Packet<?> _nettyPacketInPre(PacketListener listener, Packet<?> packet) {
++        for (PacketHook handler : hooks) {
++            try {
++                packet = handler.nettyPacketInPre(listener, player(listener), packet);
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++
++        return packet;
++    }
++
++    public static void _nettyPacketInPost(PacketListener listener, Packet<?> packet) {
++        for (PacketHook handler : hooks) {
++            try {
++                handler.nettyPacketInPost(listener, player(listener), packet);
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++    }
++
++    public static Packet<?> _nettyPacketOutPre(PacketListener listener, Packet<?> packet) {
++        for (PacketHook handler : hooks) {
++            try {
++                packet = handler.nettyPacketOutPre(listener, player(listener), packet);
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
++        }
++
++        return packet;
++    }
++
++    public static EntityPlayer player(PacketListener listener) {
++        return listener instanceof PlayerConnection ? ((PlayerConnection) listener).player : null;
++    }
++
++}
+diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
+index 5c631068db79615bf51ed357bc9bda2b0ebb0c3b..9ee8ea2dbf754075e78d1d494f7e6271d01f4aaa 100644
+--- a/src/main/java/net/minecraft/server/NetworkManager.java
++++ b/src/main/java/net/minecraft/server/NetworkManager.java
+@@ -20,6 +20,8 @@ import java.net.SocketAddress;
+ import java.util.Queue;
+ import java.util.concurrent.locks.ReentrantReadWriteLock;
+ import javax.crypto.SecretKey;
++
++import net.frozenorb.protocol.PacketHooks;
+ import org.apache.commons.lang3.ArrayUtils;
+ import org.apache.commons.lang3.Validate;
+ import org.apache.logging.log4j.LogManager;
+@@ -179,6 +181,9 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+             if (this.stopReadingPackets) {
+                 return;
+             }
++
++            if ((packet = PacketHooks._nettyPacketInPre(this.m, packet)) == null) return;
++
+             if (this.allPacketCounts != null ||
+                 com.hpfxd.pandaspigot.config.PandaSpigotConfig.get().packetLimiter.getPacketSpecificLimits().containsKey(packet.getClass())) {
+                 long time = System.nanoTime();
+@@ -215,6 +220,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+             // PandaSpigot end - packet limiter
+             try {
+                 packet.a(this.m);
++                PacketHooks._nettyPacketInPost(this.m, packet);
+             } catch (CancelledPacketHandleException cancelledpackethandleexception) {
+                 ;
+             }
+@@ -313,12 +319,12 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+         // PandaSpigot start - add flush parameter
+         this.writePacket(packet, agenericfuturelistener, Boolean.TRUE);
+     }
+-    private void writePacket(Packet packet, final GenericFutureListener<? extends Future<? super Void>>[] agenericfuturelistener, Boolean flushConditional) {
++    private void writePacket(Packet packetGot, final GenericFutureListener<? extends Future<? super Void>>[] agenericfuturelistener, Boolean flushConditional) {
+         this.packetWrites.getAndIncrement(); // must be before using canFlush
+         boolean effectiveFlush = flushConditional == null ? this.canFlush : flushConditional;
+-        final boolean flush = effectiveFlush || packet instanceof PacketPlayOutKeepAlive || packet instanceof PacketPlayOutKickDisconnect; // no delay for certain packets
++        final boolean flush = effectiveFlush || packetGot instanceof PacketPlayOutKeepAlive || packetGot instanceof PacketPlayOutKickDisconnect; // no delay for certain packets
+         // PandaSpigot end - add flush parameter
+-        final EnumProtocol enumprotocol = EnumProtocol.a(packet);
++        final EnumProtocol enumprotocol = EnumProtocol.a(packetGot);
+         final EnumProtocol enumprotocol1 = (EnumProtocol) this.channel.attr(NetworkManager.c).get();
+ 
+         if (enumprotocol1 != enumprotocol) {
+@@ -327,6 +333,10 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+         }
+ 
+         EntityPlayer player = getPlayer(); // PandaSpigot
++
++        Packet packet = PacketHooks._nettyPacketOutPre(this.m, packetGot);
++        if (packet == null) return;
++
+         if (this.channel.eventLoop().inEventLoop()) {
+             if (enumprotocol != enumprotocol1) {
+                 this.a(enumprotocol);
+@@ -338,31 +348,32 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+                 return;
+             }
+             try {
+-            // PandaSpigot end
+-            ChannelFuture channelfuture = (flush) ? this.channel.writeAndFlush(packet) : this.channel.write(packet); // PandaSpigot - add flush parameter
++                // PandaSpigot end
++                ChannelFuture channelfuture = (flush) ? this.channel.writeAndFlush(packet) : this.channel.write(packet); // PandaSpigot - add flush parameter
+ 
+-            if (agenericfuturelistener != null) {
+-                channelfuture.addListeners(agenericfuturelistener);
+-            }
++                if (agenericfuturelistener != null) {
++                    channelfuture.addListeners(agenericfuturelistener);
++                }
+ 
+-            // PandaSpigot start
+-            if (packet.hasFinishListener()) {
+-                channelfuture.addListener((ChannelFutureListener) channelFuture -> packet.onPacketDispatchFinish(player, channelFuture));
+-            }
+-            // PandaSpigot end
+-            channelfuture.addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+-            // PandaSpigot start
++                // PandaSpigot start
++                if (packet.hasFinishListener()) {
++                    channelfuture.addListener((ChannelFutureListener) channelFuture -> packet.onPacketDispatchFinish(player, channelFuture));
++                }
++                // PandaSpigot end
++                channelfuture.addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
++                // PandaSpigot start
+             } catch (Exception e) {
+                 g.error("NetworkException: " + player, e);
+-                close(new ChatMessage("disconnect.genericReason", "Internal Exception: " + e.getMessage()));;
++                close(new ChatMessage("disconnect.genericReason", "Internal Exception: " + e.getMessage()));
++                ;
+                 packet.onPacketDispatchFinish(player, null);
+             }
+             // PandaSpigot end
+         } else {
+             Runnable command = () -> { // PandaSpigot - optimise packets that are not flushed
+-                    if (enumprotocol != enumprotocol1) {
+-                        NetworkManager.this.a(enumprotocol);
+-                    }
++                if (enumprotocol != enumprotocol1) {
++                    NetworkManager.this.a(enumprotocol);
++                }
+ 
+                 // PandaSpigot start
+                 if (!isConnected()) {
+@@ -370,23 +381,24 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+                     return;
+                 }
+                 try {
+-                // PandaSpigot end
++                    // PandaSpigot end
+                     ChannelFuture channelfuture = (flush) ? NetworkManager.this.channel.writeAndFlush(packet) : NetworkManager.this.channel.write(packet); // PandaSpigot - add flush parameter
+ 
+                     if (agenericfuturelistener != null) {
+                         channelfuture.addListeners(agenericfuturelistener);
+                     }
+ 
+-                // PandaSpigot start
+-                if (packet.hasFinishListener()) {
+-                    channelfuture.addListener((ChannelFutureListener) channelFuture -> packet.onPacketDispatchFinish(player, channelFuture));
+-                }
+-                // PandaSpigot end
++                    // PandaSpigot start
++                    if (packet.hasFinishListener()) {
++                        channelfuture.addListener((ChannelFutureListener) channelFuture -> packet.onPacketDispatchFinish(player, channelFuture));
++                    }
++                    // PandaSpigot end
+                     channelfuture.addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+-                // PandaSpigot start
++                    // PandaSpigot start
+                 } catch (Exception e) {
+                     g.error("NetworkException: " + player, e);
+-                    close(new ChatMessage("disconnect.genericReason", "Internal Exception: " + e.getMessage()));;
++                    close(new ChatMessage("disconnect.genericReason", "Internal Exception: " + e.getMessage()));
++                    ;
+                     packet.onPacketDispatchFinish(player, null);
+                 }
+                 // PandaSpigot end
+@@ -395,9 +407,9 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+             if (!flush) {
+                 io.netty.util.concurrent.AbstractEventExecutor.LazyRunnable run = command::run;
+                 this.channel.eventLoop().execute(run);
+-           } else {
++            } else {
+                 this.channel.eventLoop().execute(command);
+-           }
++            }
+             // PandaSpigot end
+         }
+ 
+@@ -436,6 +448,9 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+             }
+ 
+             Packet<?> packet = queued.getPacket();
++            packet = PacketHooks._packetInPre(this.m, packet);
++            if (packet == null) continue;
++
+             if (!packet.isReady()) {
+                 // PandaSpigot start - make only one flush call per sendPacketQueue() call
+                 if (hasWrotePacket && (needsFlush || this.canFlush)) {
+@@ -450,6 +465,8 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+                 hasWrotePacket = true;
+                 // PandaSpigot end
+             }
++
++            PacketHooks._packetInPost(this.m, packet);
+         }
+         return true;
+     }
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index f5ef763b8783a6a275b5d4311d368bed25e3b878..be05e237e60e348a77b29daf12aa8d08d1fc0288 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -15,6 +15,10 @@ import java.util.Iterator;
+ import java.util.List;
+ import java.util.Set;
+ import java.util.concurrent.Callable;
++
++import net.frozenorb.protocol.MoveHook;
++import net.frozenorb.protocol.MoveHooks;
++import net.frozenorb.protocol.PacketHooks;
+ import org.apache.commons.lang3.StringUtils;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+@@ -222,14 +226,14 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+                 double d0 = this.player.locX;
+                 double d1 = this.player.locY;
+                 double d2 = this.player.locZ;
+-                double d3 = 0.0D;
+-                double d4 = packetplayinflying.a() - this.o;
+-                double d5 = packetplayinflying.b() - this.p;
+-                double d6 = packetplayinflying.c() - this.q;
++                double distanceSquared = 0.0D;
++                double dx = packetplayinflying.a() - this.o;
++                double dy = packetplayinflying.b() - this.p;
++                double dz = packetplayinflying.c() - this.q;
+ 
+                 if (packetplayinflying.g()) {
+-                    d3 = d4 * d4 + d5 * d5 + d6 * d6;
+-                    if (!this.checkMovement && d3 < 0.25D) {
++                    distanceSquared = dx * dx + dy * dy + dz * dz;
++                    if (!this.checkMovement && distanceSquared < 0.25D) {
+                         this.checkMovement = true;
+                     }
+                 }
+@@ -247,8 +251,11 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+                     hasMoved = true;
+                 }
+                 // Spigot End
+-                Location from = new Location(player.getWorld(), lastPosX, lastPosY, lastPosZ, lastYaw, lastPitch); // Get the Players previous Event location.
+-                Location to = player.getLocation().clone(); // Start off the To location as the Players current location.
++                MoveHook.Position from = new MoveHook.Position(player.getWorld(), lastPosX, lastPosY, lastPosZ, lastYaw, lastPitch); // Get the Players previous Event location.
++                from.setOnGround(player.isOnGround());
++
++                MoveHook.Position to = new MoveHook.Position(player.getLocation()); // Start off the To location as the Players current location.
++                to.setOnGround(packetplayinflying.f());
+ 
+                 // If the packet contains movement information then we update the To location with the correct XYZ.
+                 if (packetplayinflying.hasPos && !(packetplayinflying.hasPos && packetplayinflying.y == -999.0D)) {
+@@ -264,8 +271,11 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+                 }
+ 
+                 // Prevent 40 event-calls for less than a single pixel of movement >.>
++                float deltaYaw = to.getYaw() - from.getYaw();
++                float deltaPitch = to.getPitch() - from.getPitch();
++                float deltaAngle = (deltaYaw * deltaYaw) + (deltaPitch + deltaPitch);
++
+                 double delta = Math.pow(this.lastPosX - to.getX(), 2) + Math.pow(this.lastPosY - to.getY(), 2) + Math.pow(this.lastPosZ - to.getZ(), 2);
+-                float deltaAngle = Math.abs(this.lastYaw - to.getYaw()) + Math.abs(this.lastPitch - to.getPitch());
+ 
+                 if ((delta > 1f / 256 || deltaAngle > 10f) && (this.checkMovement && !this.player.dead)) {
+                     this.lastPosX = to.getX();
+@@ -274,6 +284,30 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+                     this.lastYaw = to.getYaw();
+                     this.lastPitch = to.getPitch();
+ 
++                    if (delta > 0.00390625 && (packetplayinflying.hasPos || player.isInsideVehicle())) {
++                        // If the event is cancelled we move the player back to their old location.
++                        switch (MoveHooks._handlePositionUpdate(this.player, from, to, dx, dy, dz, distanceSquared)) {
++                            case CANCEL:
++                                this.player.getBukkitEntity().teleport(MoveHook.PositionUpdateResult.cancelTo(), PlayerTeleportEvent.TeleportCause.UNKNOWN);
++                                return;
++                            case CANCEL_WITHOUT_ROTATION:
++                                this.player.getBukkitEntity().teleport(MoveHook.PositionUpdateResult.cancelTo(), PlayerTeleportEvent.TeleportCause.UNKNOWN);
++                                return;
++                            case PASS:
++                                // passthrough
++                        }
++                    }
++
++                    if (packetplayinflying.hasLook) {
++                        switch (MoveHooks._handleRotationUpdate(this.player, from, to, deltaYaw, deltaPitch, deltaAngle)) {
++                            case CANCEL:
++                                this.player.getBukkitEntity().teleport(MoveHook.RotationUpdateResult.cancelTo(), PlayerTeleportEvent.TeleportCause.UNKNOWN);
++                                return;
++                            case PASS:
++                                // passthrough
++                        }
++                    }
++
+                     // Skip the first time we do this
+                     if (true) { // Spigot - don't skip any move events
+                         Location oldTo = to.clone();
+@@ -339,7 +373,7 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+                         this.minecraftServer.getPlayerList().d(this.player);
+                         if (this.player.vehicle != null) {
+                             this.player.vehicle.ai = true; // CraftBukkit - moved from below
+-                            if (d3 > 4.0D) {
++                            if (distanceSquared > 4.0D) {
+                                 Entity entity = this.player.vehicle;
+ 
+                                 this.player.playerConnection.sendPacket(new PacketPlayOutEntityTeleport(entity));
+@@ -908,7 +942,9 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+ 
+     }
+ 
+-    public void sendPacket(final Packet packet) {
++    public void sendPacket(Packet packet) {
++        if ((packet = PacketHooks._packetOutPre(this, packet)) == null) return;
++
+         if (packet instanceof PacketPlayOutChat) {
+             PacketPlayOutChat packetplayoutchat = (PacketPlayOutChat) packet;
+             EntityHuman.EnumChatVisibility entityhuman_enumchatvisibility = this.player.getChatFlags();
+@@ -937,9 +973,10 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+             CrashReport crashreport = CrashReport.a(throwable, "Sending packet");
+             CrashReportSystemDetails crashreportsystemdetails = crashreport.a("Packet being sent");
+ 
++            Packet finalPacket = packet;
+             crashreportsystemdetails.a("Packet class", new Callable() {
+                 public String a() throws Exception {
+-                    return packet.getClass().getCanonicalName();
++                    return finalPacket.getClass().getCanonicalName();
+                 }
+ 
+                 public Object call() throws Exception {
